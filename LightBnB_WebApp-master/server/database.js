@@ -24,15 +24,20 @@ const getUserWithEmail = function(email) {
   queryString = `SELECT name, email, password, id FROM users WHERE email = $1`;
   queryParams = [email];
   return pool.query(queryString, queryParams)
-    .then((data) => {
-      user = data.rows[0];
+    
+    .then((res) => {
+//      console.log('get email', res.rows[0]);
+      user = res.rows[0];
       if (user.email === email) {
         return Promise.resolve(user);
       } else {
         user = null;
         return Promise.reject(user);
       }
-    });
+    })
+    .catch((err)=>{
+       return Promise.reject(err);
+    })
 };
 
 exports.getUserWithEmail = getUserWithEmail;
@@ -50,14 +55,17 @@ const getUserWithId = function(id) {
   let user;
   
   return pool.query(queryString, queryParams)
-    .then((data) => {
-      user = data.rows[0];
+    .then((res) => {
+      user = res.rows[0];
       if (user.id === id) {
         return Promise.resolve(user);
       } else {
         user = null;
         return Promise.reject(user);
       }
+    })
+    .catch((err)=>{
+       return Promise.reject(err);
     });
 };
 exports.getUserWithId = getUserWithId;
@@ -74,8 +82,12 @@ const addUser =  function(user) {
   queryParams = [user.name, user.email, user.password];
   queryString = `INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING *;`;
   return pool.query(queryString, queryParams)
-    .then((data) => {
-      return Promise.resolve((data.rows[0]));
+    .then((res) => {
+//      console.log(res.rows[0]);
+      return Promise.resolve((res.rows[0]));
+    })
+    .catch((err)=>{
+      return Promise.reject(err);
     });
 };
 exports.addUser = addUser;
@@ -95,7 +107,7 @@ const getAllReservations = function(guest_id, limit = 10) {
   prop.*,
   AVG(pr.rating)
   FROM reservations res
-  JOIN properties prop ON r.property_id = prop.id
+  JOIN properties prop ON res.property_id = prop.id
   JOIN property_reviews pr ON pr.property_id = prop.id
   WHERE res.guest_id = $1
   AND res.end_date < now()
@@ -107,7 +119,8 @@ const getAllReservations = function(guest_id, limit = 10) {
   return pool.query(queryString, queryParams)
   .then((res)=>{
     return Promise.resolve(res.rows);
-  });
+  })
+  .catch(err => Promise.reject(err));
 };
 exports.getAllReservations = getAllReservations;
 
@@ -124,8 +137,8 @@ const getAllProperties = function(options, limit = 10) {
   queryParams = [];
   queryString = `SELECT p.*,
   ROUND(AVG(pr.rating)) AS average_rating
-FROM properties p
-  JOIN property_reviews pr ON property_id = p.id `;
+  FROM properties p
+  JOIN property_reviews pr ON pr.property_id = p.id `;
 
   if (options.city) {
     queryParams.push(`%${options.city}%`);
@@ -174,8 +187,8 @@ FROM properties p
   LIMIT $${queryParams.length};`;
 
   return pool.query(queryString, queryParams)
-    .then((data) => {
-      return Promise.resolve(data.rows);
+    .then((res) => {
+      return Promise.resolve(res.rows);
     });
 };
 exports.getAllProperties = getAllProperties;
@@ -187,9 +200,31 @@ exports.getAllProperties = getAllProperties;
  * @return {Promise<{}>} A promise to the property.
  */
 const addProperty = function(property) {
-  const propertyId = Object.keys(properties).length + 1;
-  property.id = propertyId;
-  properties[propertyId] = property;
-  return Promise.resolve(property);
-}
+  queryString = '';
+  queryParams = [];
+  queryString = `
+  INSERT INTO properties (owner_id, title, description,thumbnail_photo_url,cover_photo_url,cost_per_night,street,city,province,post_code,country,parking_spaces,number_of_bathrooms,number_of_bedrooms) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`;
+  queryParams = 
+  [ 
+    property.owner_id,
+    property.title,
+    property.description,
+    property.thumbnail_photo_url,
+    property.cover_photo_url,
+    property.cost_per_night,
+    property.street,
+    property.city,
+    property.province,
+    property.post_code,
+    property.country,
+    property.parking_spaces,
+    property.number_of_bathrooms,
+    property.number_of_bedrooms
+  ];
+  
+  return pool.query(queryString,queryParams)
+  .then ((res)=>{
+    return Promise.resolve(res.rows[0]);
+  }); 
+};
 exports.addProperty = addProperty;
