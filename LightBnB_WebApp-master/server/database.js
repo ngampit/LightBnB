@@ -120,12 +120,64 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
 const getAllProperties = function(options, limit = 10) {
-  const limitedProperties = {};
-  for (let i = 1; i <= limit; i++) {
-    limitedProperties[i] = properties[i];
+  queryString = '';
+  queryParams = [];
+  queryString = `SELECT p.*,
+  ROUND(AVG(pr.rating)) AS average_rating
+FROM properties p
+  JOIN property_reviews pr ON property_id = p.id `;
+
+  if (options.city) {
+    queryParams.push(`%${options.city}%`);
+    queryString += ` WHERE p.city LIKE $${queryParams.length} `;
   }
-  return Promise.resolve(limitedProperties);
-}
+
+  if (options.owner_id) {
+    if (queryParams.length >= 1) {
+      queryParams.push(`${options.owner_id}`);
+      queryString += `AND p.owner_id = $${queryParams.length} `;
+    } else {
+      queryParams.push(`${options.owner_id}`);
+      queryString += `WHERE p.owner_id = $${queryParams.length} `;
+    }
+  }
+ 
+  if (options.minimum_price_per_night) {
+    if (queryParams.length >= 1) {
+      queryParams.push(`${options.minimum_price_per_night}`);
+      queryString += `AND p.cost_per_night >= $${queryParams.length} `;
+    } else {
+      queryParams.push(`${options.minimum_price_per_night}`);
+      queryString += `WHERE p.cost_per_night >= $${queryParams.length} `;
+    }
+  }
+
+  if (options.maximum_price_per_night) {
+    if (queryParams.length >= 1) {
+      queryParams.push(`${options.maximum_price_per_night}`);
+      queryString += `AND p.cost_per_night <= $${queryParams.length} `;
+    } else {
+      queryParams.push(`${options.maximum_price_per_night}`);
+      queryString += `WHERE p.cost_per_night <= $${queryParams.length} `;
+    }
+  }
+
+  queryString += `GROUP BY p.id`;
+
+  if (options.minimum_rating) {
+    queryParams.push(`${options.minimum_rating}`);
+    queryString += ` HAVING AVG(pr.rating) >= $${queryParams.length } `;
+  }
+
+  queryParams.push(limit);
+  queryString += ` ORDER BY p.cost_per_night ASC
+  LIMIT $${queryParams.length};`;
+
+  return pool.query(queryString, queryParams)
+    .then((data) => {
+      return Promise.resolve(data.rows);
+    });
+};
 exports.getAllProperties = getAllProperties;
 
 
